@@ -172,4 +172,4 @@ SDK使用SLF4J和Logback进行日志记录。默认配置会将日志输出到�
 
 ## 联系方式
 
-如有问题或建议，请联系我们的支持团队: support@iot-platform.com 
+如有问题或建议，请联系我们的支持团队: iotali@dingtalk.com
