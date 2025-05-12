@@ -15,7 +15,7 @@ public class IoTSdk {
     public static final String VERSION = "1.0.0";
     
     /**
-     * 创建IoT客户端
+     * 使用token创建IoT客户端
      *
      * @param baseUrl API基础URL
      * @param token   认证令牌
@@ -23,6 +23,18 @@ public class IoTSdk {
      */
     public static IoTClient createClient(String baseUrl, String token) {
         return new IoTClient(baseUrl, token);
+    }
+
+    /**
+     * 使用应用凭证创建IoT客户端（推荐方式）
+     *
+     * @param baseUrl   API基础URL
+     * @param appId     应用ID
+     * @param appSecret 应用密钥
+     * @return IoTClient IoT客户端实例
+     */
+    public static IoTClient createClientFromCredentials(String baseUrl, String appId, String appSecret) {
+        return new IoTClient(baseUrl, appId, appSecret);
     }
     
     /**

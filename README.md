@@ -1,49 +1,199 @@
-# IoT 云平台 Java SDK
+# IoT云平台SDK (Java)
 
-这是一个用于与IoT云平台交互的Java SDK，提供了设备管理相关的API调用功能。
+这是一个用于连接和管理IoT设备的Java SDK，提供了与IoT云平台交互的简便方法。
+
+## SDK结构
+
+SDK采用模块化设计，主要包含以下组件：
+
+- **IoTClient**: 核心客户端类，处理API请求、认证和基础通信
+- **DeviceManager**: 设备管理模块，提供设备相关的所有操作
+- **Utils**: 工具函数集，提供格式化、数据处理等辅助功能
 
 ## 功能特性
 
-- 设备注册与管理
-- 设备状态查询
-- 设备详情获取
-- 批量设备状态查询
-- 发送RRPC消息到设备
-- 发送自定义指令到设备
+- 认证管理
+  - 通过token直接认证
+  - **新增：** 通过应用凭证(appId/appSecret)自动获取token
+- 设备管理
+  - 设备注册
+  - 设备详情查询
+  - 设备状态查询
+  - 批量设备状态查询
+- 远程控制
+  - RRPC消息发送
+  - 自定义指令下发（异步）
 
-## 系统要求
+## 安装要求
 
-- Java 8+
-- Maven 3.6+
-
-## 安装
-
-1. 克隆代码库:
-
-```bash
-git clone https://github.com/yourusername/cloud_sdk_java.git
-cd cloud_sdk_java
-```
-
-2. 使用Maven进行安装:
-
-```bash
-mvn clean install
-```
-
-3. 在您的项目中添加依赖:
+1. Java 8 或更高版本
+2. Maven 3.6 或更高版本
+3. 添加依赖：
 
 ```xml
 <dependency>
     <groupId>com.iot</groupId>
-    <artifactId>cloud-sdk-java</artifactId>
+    <artifactId>iot-sdk</artifactId>
     <version>1.0.0</version>
 </dependency>
 ```
 
 ## 快速开始
 
-以下是SDK的基本使用方法:
+### 1. 创建客户端和设备管理器
+
+#### 方式一：使用token创建客户端（传统方式）
+
+```java
+import com.iot.sdk.IoTSdk;
+import com.iot.sdk.client.IoTClient;
+import com.iot.sdk.device.DeviceManager;
+
+// 创建IoT客户端
+IoTClient client = IoTSdk.createClient(
+    "https://your-iot-platform-url",
+    "your-auth-token"
+);
+
+// 创建设备管理器
+DeviceManager deviceManager = IoTSdk.createDeviceManager(client);
+```
+
+#### 方式二：使用应用凭证创建客户端（推荐方式）
+
+```java
+import com.iot.sdk.IoTSdk;
+import com.iot.sdk.client.IoTClient;
+import com.iot.sdk.device.DeviceManager;
+
+// 使用应用凭证自动获取token并创建客户端
+IoTClient client = IoTSdk.createClientFromCredentials(
+    "https://your-iot-platform-url",
+    "your-app-id",
+    "your-app-secret"
+);
+
+// 创建设备管理器
+DeviceManager deviceManager = IoTSdk.createDeviceManager(client);
+```
+
+### 2. 设备注册
+
+```java
+// 注册设备
+JsonObject response = deviceManager.registerDevice(
+    "your-product-key",
+    "your-device-name",  // 可选
+    "设备显示名称"  // 可选
+);
+
+// 检查结果
+if (client.checkResponse(response)) {
+    JsonObject deviceInfo = response.getAsJsonObject("data");
+    System.out.println("设备ID: " + deviceInfo.get("deviceId").getAsString());
+    System.out.println("设备密钥: " + deviceInfo.get("deviceSecret").getAsString());
+}
+```
+
+### 3. 查询设备详情
+
+```java
+// 通过设备名称查询
+JsonObject response = deviceManager.getDeviceDetail("your-device-name", null);
+
+// 或通过设备ID查询
+JsonObject response = deviceManager.getDeviceDetail(null, "your-device-id");
+
+// 处理结果
+if (client.checkResponse(response)) {
+    JsonObject deviceInfo = response.getAsJsonObject("data");
+    System.out.println("设备状态: " + deviceInfo.get("status").getAsString());
+}
+```
+
+### 4. 查询设备状态
+
+```java
+// 查询设备在线状态
+JsonObject response = deviceManager.getDeviceStatus("your-device-name", null);
+
+// 处理结果
+if (client.checkResponse(response)) {
+    JsonObject statusData = response.getAsJsonObject("data");
+    System.out.println("设备状态: " + statusData.get("status").getAsString());
+    System.out.println("状态时间戳: " + statusData.get("timestamp").getAsLong());
+}
+```
+
+### 5. 批量查询设备状态
+
+```java
+// 批量查询多个设备状态
+List<String> deviceNames = Arrays.asList("device1", "device2", "device3");
+JsonObject response = deviceManager.batchGetDeviceStatus(deviceNames, null);
+
+// 处理结果
+if (client.checkResponse(response)) {
+    JsonArray devicesData = response.getAsJsonObject("data").getAsJsonArray();
+    for (JsonElement deviceElement : devicesData) {
+        JsonObject device = deviceElement.getAsJsonObject();
+        System.out.println("设备名称: " + device.get("deviceName").getAsString());
+        System.out.println("设备状态: " + device.get("status").getAsString());
+        System.out.println("最后在线时间: " + device.get("lastOnlineTime").getAsLong());
+        System.out.println("-------------------");
+    }
+}
+```
+
+### 6. 发送RRPC消息
+
+```java
+// 向设备发送RRPC消息
+JsonObject response = deviceManager.sendRrpcMessage(
+    "your-device-name",
+    "your-product-key",
+    "Hello Device",
+    5000  // 超时时间(毫秒)
+);
+
+// 处理响应
+if (client.checkResponse(response)) {
+    if (response.has("payloadBase64Byte")) {
+        String base64Response = response.get("payloadBase64Byte").getAsString();
+        String decodedResponse = new String(
+            Base64.getDecoder().decode(base64Response),
+            StandardCharsets.UTF_8
+        );
+        System.out.println("设备响应: " + decodedResponse);
+    }
+}
+```
+
+### 7. 发送自定义指令（异步）
+
+```java
+// 向设备发送自定义指令
+String messageContent = new Gson().toJson(Map.of(
+    "command", "set_mode",
+    "params", Map.of(
+        "mode", 2,
+        "duration", 30
+    )
+));
+
+JsonObject response = deviceManager.sendCustomCommand(
+    "your-device-name",
+    messageContent
+);
+
+if (client.checkResponse(response)) {
+    System.out.println("自定义指令下发成功!");
+}
+```
+
+## 完整示例
+
+### 使用应用凭证并重用客户端
 
 ```java
 import com.iot.sdk.IoTSdk;
@@ -51,125 +201,82 @@ import com.iot.sdk.client.IoTClient;
 import com.iot.sdk.device.DeviceManager;
 import com.google.gson.JsonObject;
 
-public class QuickStart {
-    public static void main(String[] args) throws Exception {
-        // 初始化SDK
-        String baseUrl = "https://api.iot-platform.com"; // 替换为实际的API地址
-        String token = "your-api-token";                 // 替换为实际的API令牌
-        
-        IoTClient client = IoTSdk.createClient(baseUrl, token);
-        DeviceManager deviceManager = IoTSdk.createDeviceManager(client);
-        
-        // 注册设备
-        JsonObject registerResult = deviceManager.registerDevice(
-            "your-product-key",  // 产品密钥
-            "device123",         // 设备名称（可选）
-            "测试设备"            // 设备显示名称（可选）
-        );
-        
-        // 查询设备状态
-        JsonObject statusResult = deviceManager.getDeviceStatus(
-            "device123",  // 设备名称
-            null          // 设备ID（与设备名称二选一即可）
-        );
-        
-        // 发送自定义指令
-        JsonObject commandResult = deviceManager.sendCustomCommand(
-            "device123",              // 设备名称
-            "{\"command\": \"open\"}" // 指令内容（JSON格式）
-        );
-    }
-}
-```
+// 配置参数
+String baseUrl = "https://your-iot-platform-url";
+String appId = "your-app-id";
+String appSecret = "your-app-secret";
+String productKey = "your-product-key";
 
-## 主要API
-
-### 创建客户端
-
-```java
-IoTClient client = IoTSdk.createClient(baseUrl, token);
-DeviceManager deviceManager = IoTSdk.createDeviceManager(client);
-```
-
-### 设备管理
-
-#### 注册设备
-
-```java
-JsonObject result = deviceManager.registerDevice(productKey, deviceName, nickName);
-```
-
-#### 查询设备详情
-
-```java
-JsonObject result = deviceManager.getDeviceDetail(deviceName, deviceId);
-```
-
-#### 查询设备状态
-
-```java
-JsonObject result = deviceManager.getDeviceStatus(deviceName, deviceId);
-```
-
-#### 批量查询设备状态
-
-```java
-List<String> deviceNameList = Arrays.asList("device1", "device2", "device3");
-JsonObject result = deviceManager.batchGetDeviceStatus(deviceNameList, null);
-```
-
-#### 发送RRPC消息
-
-```java
-JsonObject result = deviceManager.sendRrpcMessage(deviceName, productKey, messageContent, timeout);
-```
-
-#### 发送自定义指令
-
-```java
-JsonObject result = deviceManager.sendCustomCommand(deviceName, messageContent);
-```
-
-## 错误处理
-
-SDK中的方法可能会抛出以下异常:
-
-- `IllegalArgumentException`: 参数错误
-- `IOException`: 网络请求错误
-- 其他异常: JSON解析错误等
-
-建议使用try-catch处理这些异常:
-
-```java
 try {
-    JsonObject result = deviceManager.getDeviceStatus(deviceName, null);
-} catch (IllegalArgumentException e) {
-    System.err.println("参数错误: " + e.getMessage());
-} catch (IOException e) {
-    System.err.println("网络请求错误: " + e.getMessage());
+    // 初始化客户端（仅一次）
+    IoTClient client = IoTSdk.createClientFromCredentials(baseUrl, appId, appSecret);
+    System.out.println("客户端初始化成功，Token: " + client.getToken().substring(0, 10) + "...");
+    
+    // 创建设备管理器
+    DeviceManager deviceManager = IoTSdk.createDeviceManager(client);
+    
+    // 执行多个操作，复用同一个客户端
+    String deviceName = "test-device-1";
+    
+    // 查询设备状态
+    JsonObject statusResponse = deviceManager.getDeviceStatus(deviceName, null);
+    if (client.checkResponse(statusResponse)) {
+        String status = statusResponse.getAsJsonObject("data").get("status").getAsString();
+        System.out.println("设备状态: " + status);
+    }
+    
+    // 发送指令
+    String commandJson = new Gson().toJson(Map.of("command", "refresh"));
+    JsonObject messageResponse = deviceManager.sendRrpcMessage(
+        deviceName,
+        productKey,
+        commandJson
+    );
+    
+    // 其他操作...
+    
 } catch (Exception e) {
-    System.err.println("未知错误: " + e.getMessage());
+    System.err.println("错误: " + e.getMessage());
 }
 ```
 
-## 示例
+## 自定义日志
 
-SDK包含了一个完整的示例应用程序，展示了各API的使用方法。可以通过以下方式运行:
+SDK支持自定义日志记录器：
 
-```bash
-mvn exec:java -Dexec.mainClass="com.iot.sdk.examples.DeviceExample"
+```java
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// 创建自定义日志记录器
+Logger logger = LoggerFactory.getLogger("my-iot-app");
+
+// 创建带自定义日志的客户端（使用token）
+IoTClient client = IoTSdk.createClient(
+    "https://your-iot-platform-url",
+    "your-auth-token"
+);
+
+// 或使用应用凭证创建
+IoTClient client = IoTSdk.createClientFromCredentials(
+    "https://your-iot-platform-url",
+    "your-app-id",
+    "your-app-secret"
+);
 ```
 
-## 日志记录
+## 注意事项
 
-SDK使用SLF4J和Logback进行日志记录。默认配置会将日志输出到控制台和logs目录下的文件中。
+- **认证方式**：推荐使用应用凭证方式自动获取token
+- **客户端复用**：创建一次客户端实例后在应用程序中复用，避免重复获取token
+- 使用前请确保已获取正确的认证令牌/应用凭证和产品密钥
+- 所有API调用都会返回完整的响应内容，便于进一步处理和分析
+- 自定义指令下发需要设备已订阅相应的主题
 
-您可以通过覆盖classpath中的logback.xml配置文件来自定义日志行为。
+## 贡献
+
+欢迎提交问题和改进建议，也欢迎通过Pull Request来提交代码贡献。
 
 ## 许可证
 
-这个项目使用MIT许可证 - 详情请参见[LICENSE](LICENSE)文件。
-
-## 联系方式
-
-如有问题或建议，请联系我们的支持团队: iotali@dingtalk.com
+MIT License

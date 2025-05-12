@@ -23,15 +23,64 @@ public class DeviceExample {
     
     public static void main(String[] args) {
         // 配置SDK
-        String baseUrl = "http://xxx.xxxx.xxx.xxx";  // 替换为实际的API地址
-        String token = "1379b85e-1f7e-4d5b-851d-d13757*****";                  // 替换为实际的API令牌
+        String baseUrl = "https://your-api-base-url.com";  // 替换为实际的API地址
         
-        // 初始化SDK
-        IoTClient client = IoTSdk.createClient(baseUrl, token);
+        // 选择认证方式
+        System.out.println("请选择认证方式：");
+        System.out.println("1. 使用Token认证");
+        System.out.println("2. 使用应用凭证认证（推荐）");
+        System.out.print("请输入选择（1或2）: ");
+        
+        Scanner scanner = new Scanner(System.in);
+        String authChoice = scanner.nextLine();
+        
+        IoTClient client;
+        try {
+            if ("1".equals(authChoice)) {
+                // 使用Token认证
+                System.out.print("请输入Token: ");
+                String token = scanner.nextLine();
+                if (token == null || token.trim().isEmpty()) {
+                    throw new IllegalArgumentException("Token不能为空");
+                }
+                client = IoTSdk.createClient(baseUrl, token);
+                System.out.println("使用Token认证方式初始化客户端成功");
+            } else if ("2".equals(authChoice)) {
+                // 使用应用凭证认证
+                System.out.print("请输入应用ID (appId): ");
+                String appId = scanner.nextLine();
+                if (appId == null || appId.trim().isEmpty()) {
+                    throw new IllegalArgumentException("应用ID不能为空");
+                }
+                
+                System.out.print("请输入应用密钥 (appSecret): ");
+                String appSecret = scanner.nextLine();
+                if (appSecret == null || appSecret.trim().isEmpty()) {
+                    throw new IllegalArgumentException("应用密钥不能为空");
+                }
+                
+                System.out.println("正在使用应用凭证初始化客户端...");
+                client = IoTSdk.createClientFromCredentials(baseUrl, appId, appSecret);
+                System.out.println("使用应用凭证认证方式初始化客户端成功");
+                System.out.println("获取到的Token: " + client.getToken());
+            } else {
+                System.out.println("无效的选择，程序退出");
+                return;
+            }
+        } catch (IllegalArgumentException e) {
+            System.err.println("参数错误: " + e.getMessage());
+            return;
+        } catch (Exception e) {
+            System.err.println("初始化客户端失败: " + e.getMessage());
+            e.printStackTrace();
+            return;
+        }
+        
+        // 创建设备管理器
         DeviceManager deviceManager = IoTSdk.createDeviceManager(client);
+        System.out.println("设备管理器创建成功");
         
         // 菜单循环
-        Scanner scanner = new Scanner(System.in);
         boolean running = true;
         
         while (running) {
@@ -88,7 +137,7 @@ public class DeviceExample {
      */
     private static void registerDevice(Scanner scanner, DeviceManager deviceManager) throws IOException {
         System.out.println("\n--- 注册设备 ---");
-        System.out.print("请输入产品密钥: ");
+        System.out.print("请输入产品编码: ");
         String productKey = scanner.nextLine();
         
         System.out.print("请输入设备名称 (可选): ");
@@ -147,7 +196,7 @@ public class DeviceExample {
             System.out.println("\n设备详情:");
             System.out.println("设备ID: " + data.get("deviceId").getAsString());
             System.out.println("设备名称: " + data.get("deviceName").getAsString());
-            System.out.println("产品密钥: " + data.get("productKey").getAsString());
+            System.out.println("产品编码: " + data.get("productKey").getAsString());
             System.out.println("状态: " + data.get("status").getAsString());
         } else {
             System.out.println("设备查询失败或返回数据异常");
@@ -317,7 +366,7 @@ public class DeviceExample {
         System.out.print("请输入设备名称: ");
         String deviceName = scanner.nextLine();
         
-        System.out.print("请输入产品密钥: ");
+        System.out.print("请输入产品编码: ");
         String productKey = scanner.nextLine();
         
         System.out.print("请输入消息内容: ");

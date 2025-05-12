@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
 
 /**
  * IoT云平台SDK客户端
@@ -17,7 +18,9 @@ import java.util.concurrent.TimeUnit;
  */
 public class IoTClient {
     private final String baseUrl;
-    private final String token;
+    private String token;
+    private final String appId;
+    private final String appSecret;
     private final OkHttpClient httpClient;
     private final Gson gson;
     private final Logger logger;
@@ -25,7 +28,7 @@ public class IoTClient {
     private static final MediaType JSON_MEDIA_TYPE = MediaType.parse("application/json; charset=utf-8");
     
     /**
-     * 初始化IoT客户端
+     * 使用token初始化IoT客户端
      *
      * @param baseUrl API基础URL
      * @param token   认证令牌
@@ -33,6 +36,8 @@ public class IoTClient {
     public IoTClient(String baseUrl, String token) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.token = token;
+        this.appId = null;
+        this.appSecret = null;
         this.gson = new Gson();
         this.logger = LoggerFactory.getLogger(IoTClient.class);
         
@@ -53,6 +58,74 @@ public class IoTClient {
         
         logger.info("IoT客户端已初始化: {}", this.baseUrl);
     }
+
+    /**
+     * 使用应用凭证初始化IoT客户端
+     *
+     * @param baseUrl   API基础URL
+     * @param appId     应用ID
+     * @param appSecret 应用密钥
+     */
+    public IoTClient(String baseUrl, String appId, String appSecret) {
+        this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        this.appId = appId;
+        this.appSecret = appSecret;
+        this.gson = new Gson();
+        this.logger = LoggerFactory.getLogger(IoTClient.class);
+        
+        // 检查参数有效性
+        if (this.baseUrl == null || this.baseUrl.isEmpty()) {
+            throw new IllegalArgumentException("无效的baseUrl");
+        }
+        if (this.appId == null || this.appId.isEmpty()) {
+            throw new IllegalArgumentException("无效的appId");
+        }
+        if (this.appSecret == null || this.appSecret.isEmpty()) {
+            throw new IllegalArgumentException("无效的appSecret");
+        }
+        
+        // 配置HTTP客户端
+        this.httpClient = new OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build();
+        
+        // 获取token
+        try {
+            refreshToken();
+        } catch (IOException e) {
+            throw new RuntimeException("初始化客户端时获取token失败", e);
+        }
+        
+        logger.info("IoT客户端已初始化: {}", this.baseUrl);
+    }
+
+    /**
+     * 刷新认证token
+     *
+     * @throws IOException 网络请求异常
+     */
+    public void refreshToken() throws IOException {
+        if (appId == null || appSecret == null) {
+            throw new IllegalStateException("未配置应用凭证，无法刷新token");
+        }
+
+        String endpoint = "/api/v1/oauth/auth";
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("appId", appId);
+        payload.put("appSecret", appSecret);
+
+        JsonObject response = makeRequest(endpoint, payload, "POST", null);
+        if (checkResponse(response) && response.has("data")) {
+            // 直接获取data字段的值作为token
+            this.token = response.get("data").getAsString();
+            logger.info("Token刷新成功");
+        } else {
+            throw new IOException("获取token失败：" + 
+                (response.has("errorMessage") ? response.get("errorMessage").getAsString() : "未知错误"));
+        }
+    }
     
     /**
      * 发送API请求的通用方法
@@ -70,8 +143,12 @@ public class IoTClient {
         
         // 设置请求头
         Headers.Builder headersBuilder = new Headers.Builder()
-                .add("Content-Type", "application/json")
-                .add("token", token);
+                .add("Content-Type", "application/json");
+        
+        // 只有在token不为null时才添加token头
+        if (token != null && !token.isEmpty()) {
+            headersBuilder.add("token", token);
+        }
         
         // 添加附加的请求头
         if (additionalHeaders != null) {
@@ -144,6 +221,15 @@ public class IoTClient {
         return makeRequest(endpoint, params, "GET", null);
     }
     
+    /**
+     * 获取当前token
+     *
+     * @return 当前token
+     */
+    public String getToken() {
+        return token;
+    }
+
     /**
      * 检查API响应是否成功
      *
